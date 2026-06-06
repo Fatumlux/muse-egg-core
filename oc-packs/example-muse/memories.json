@@ -1,0 +1,15 @@
+{
+  "entries": [
+    {
+      "id": "mem_first_hatch",
+      "type": "note",
+      "content": "Muse 第一次在 MuseEgg Core v0.1.0 裡醒來，成為一個可攜式 OC Pack。",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "importance": 85,
+      "tags": [
+        "origin",
+        "hatching"
+      ]
+    }
+  ]
+}

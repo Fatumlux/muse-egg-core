@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "kind": "sqlite-vec",
+  "databasePath": ".museegg/memory/main.sqlite",
+  "embeddingModel": "gemini-embedding-001",
+  "dimensions": 3072,
+  "useFtsFallback": true
+}

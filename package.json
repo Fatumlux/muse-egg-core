@@ -1,0 +1,38 @@
+{
+  "name": "muse-egg-core",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "Open-source OC life engine for long-lived original characters.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Fatumlux/muse-egg-core.git"
+  },
+  "museEgg": {
+    "updateCheckUrl": "https://api.github.com/repos/Fatumlux/muse-egg-core/releases/latest"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build:packages": "npm -w @muse-egg/oc-schema run build && npm -w @muse-egg/core run build && npm -w @muse-egg/adapters run build && npm -w @muse-egg/ui run build && npm -w @muse-egg/starter-oc run build",
+    "build": "npm run build:packages && npm -w @muse-egg/desktop run build",
+    "start": "npm -w @muse-egg/desktop run start",
+    "dev": "npm run build:packages && npm -w @muse-egg/desktop run dev",
+    "web": "npm run build:packages && npm -w @muse-egg/desktop run web",
+    "companion": "npm run build:packages && npm -w @muse-egg/desktop run companion",
+    "startup:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-museegg-shortcuts.ps1",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "clean": "rimraf apps/*/dist apps/*/dist-electron packages/*/dist"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

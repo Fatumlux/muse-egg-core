@@ -1,0 +1,39 @@
+{
+  "name": "@muse-egg/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "start": "electron dist-electron/main.js",
+    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on tcp:5173 && npm run build:electron && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron dist-electron/main.js\"",
+    "build:electron": "esbuild src/main/main.ts src/main/preload.ts --bundle --platform=node --format=esm --outdir=dist-electron --external:electron --external:better-sqlite3 --external:sqlite-vec --external:sqlite-vec-*",
+    "build:web-api": "esbuild src/web/server.ts --bundle --platform=node --format=esm --outfile=dist-web/server.js --external:better-sqlite3 --external:sqlite-vec --external:sqlite-vec-*",
+    "web:api": "npm run build:web-api && node dist-web/server.js",
+    "companion": "npm run web:api",
+    "web": "concurrently -k \"npm run web:api\" \"vite --host 127.0.0.1\"",
+    "build": "npm run build:electron && npm run build:web-api && vite build",
+    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit"
+  },
+  "dependencies": {
+    "@muse-egg/adapters": "0.1.0",
+    "@muse-egg/core": "0.1.0",
+    "@muse-egg/oc-schema": "0.1.0",
+    "@muse-egg/starter-oc": "0.1.0",
+    "@muse-egg/ui": "0.1.0",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^42.3.3",
+    "esbuild": "^0.28.0",
+    "vite": "^6.0.3",
+    "wait-on": "^8.0.1"
+  }
+}

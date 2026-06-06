@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "quietHours": {
+    "start": "23:00",
+    "end": "08:00"
+  },
+  "maxWakeupsPerDay": 8,
+  "wakeFrequency": "medium",
+  "wakeOnTelegramMessage": true,
+  "wakeOnFileChange": true,
+  "wakeOnScheduledCheck": true
+}

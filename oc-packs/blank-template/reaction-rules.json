@@ -1,0 +1,10 @@
+[
+  {
+    "id": "react_greeting",
+    "trigger": "hello",
+    "response": "{name} 注意到你，從核心裡給出一個很輕的回應。",
+    "expression": "soft-smile",
+    "platform": "any",
+    "enabled": true
+  }
+]

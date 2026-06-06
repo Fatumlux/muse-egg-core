@@ -1,0 +1,25 @@
+{
+  "enabled": true,
+  "autoRecordReflections": true,
+  "autoSummarizeMemories": true,
+  "autoProposeLore": true,
+  "autoProposeSkills": true,
+  "autoProposeSelfRewrite": true,
+  "allowSelfRewriteAfterApproval": true,
+  "autoModifyPack": false,
+  "autoInstallSkills": false,
+  "allowPrivateDataExport": false,
+  "allowDestructiveFileActions": false,
+  "requireExplicitPermissionFor": [
+    "external_network_send",
+    "install_or_enable_plugin",
+    "modify_identity",
+    "write_outside_pack",
+    "run_system_command"
+  ],
+  "forbiddenActions": [
+    "private_data_export",
+    "destructive_file_action"
+  ],
+  "proposalLogPath": ".museegg/growth/proposals.jsonl"
+}

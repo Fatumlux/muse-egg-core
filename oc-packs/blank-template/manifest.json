@@ -1,0 +1,9 @@
+{
+  "id": "blank-template",
+  "name": "Blank OC Template",
+  "version": "0.1.0",
+  "author": "Your Name",
+  "description": "A minimal OC Pack template for MuseEgg Core.",
+  "license": "MIT",
+  "engineVersion": "0.1.0"
+}

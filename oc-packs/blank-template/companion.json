@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "desktopPet": true,
+  "websiteSync": true,
+  "launchOnStartup": true,
+  "relationshipMode": "friend",
+  "notificationLevel": "balanced",
+  "allowAmbientWakeups": true,
+  "smallWindowAlwaysOnTop": false
+}

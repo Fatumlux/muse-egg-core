@@ -1,0 +1,27 @@
+{
+  "local": {
+    "enabled": true,
+    "timezone": "Asia/Taipei",
+    "locale": "zh-TW",
+    "exposeLocalTime": true,
+    "exposePackPath": false,
+    "allowReadInsidePack": true,
+    "allowReadOutsidePack": false,
+    "allowShellCommands": false
+  },
+  "network": {
+    "enabled": true,
+    "allowOutboundRequests": true,
+    "requirePermissionForExternalHosts": true,
+    "allowedHosts": [
+      "api.openai.com",
+      "generativelanguage.googleapis.com",
+      "127.0.0.1",
+      "localhost"
+    ],
+    "blockedHosts": [],
+    "maxResponseBytes": 524288,
+    "userAgent": "MuseEgg-Core/0.1",
+    "webSearchEnabled": false
+  }
+}

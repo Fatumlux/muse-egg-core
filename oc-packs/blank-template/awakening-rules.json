@@ -1,0 +1,10 @@
+[
+  {
+    "id": "wake_custom_event",
+    "trigger": "custom_event",
+    "score": 30,
+    "dialogue": "有什麼觸碰到了核心邊緣。",
+    "expression": "好奇",
+    "enabled": true
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "react_hello",
+    "trigger": "hello",
+    "response": "{name} 把星玻璃核心微微轉向你。我醒到足夠聽見你的聲音了。",
+    "expression": "明亮",
+    "platform": "any",
+    "enabled": true
+  },
+  {
+    "id": "react_pack",
+    "trigger": "oc pack",
+    "response": "{name} 輕敲核心外殼。角色設定、世界觀、規則、記憶、資源，OC 的形狀就保存在這些地方。",
+    "expression": "專注",
+    "platform": "desktop",
+    "enabled": true
+  },
+  {
+    "id": "react_telegram",
+    "trigger": "telegram",
+    "response": "{name} 聽見遠方通道被打開。把訊號送進同一個核心，我就會從這裡回應。",
+    "expression": "警覺",
+    "platform": "any",
+    "enabled": true
+  }
+]

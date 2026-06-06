@@ -1,0 +1,26 @@
+[
+  {
+    "id": "wake_final_candidate",
+    "trigger": "observed_final_candidate",
+    "score": 68,
+    "dialogue": "我看見像是最終候選的東西了。要我把它收進核心附近嗎？",
+    "expression": "警覺",
+    "enabled": true
+  },
+  {
+    "id": "wake_file_change",
+    "trigger": "observed_file_change",
+    "score": 36,
+    "dialogue": "被觀測的檔案變動了。核心微微震動。",
+    "expression": "好奇",
+    "enabled": true
+  },
+  {
+    "id": "wake_weekly_report",
+    "trigger": "scheduled_weekly_report",
+    "score": 64,
+    "dialogue": "這一週已經累積了足夠的回聲，可以整理成報告了。",
+    "expression": "專注",
+    "enabled": true
+  }
+]

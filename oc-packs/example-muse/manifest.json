@@ -1,0 +1,9 @@
+{
+  "id": "example-muse",
+  "name": "Example Muse",
+  "version": "0.1.0",
+  "author": "MuseEgg Core",
+  "description": "一個起始 OC Pack，展示原創角色如何把角色設定、世界觀、記憶、禁忌規則、反應與自主喚醒保存在同一個可攜式資料夾中。",
+  "license": "MIT",
+  "engineVersion": "0.1.0"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "Your OC",
+  "aliases": [],
+  "role": "original character",
+  "personality": "describe the character's inner tendencies here",
+  "speakingStyle": "short, clear, faithful to the character",
+  "defaultExpression": "neutral",
+  "defaultForm": "desktop"
+}
