@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { OCProcessResult, OCPack } from "@muse-egg/oc-schema";
+import type {
+  OCFolderIndexSnapshot,
+  OCIdentityTestReport,
+  OCProcessResult,
+  OCPack,
+  OCPackBackupEntry,
+  OCPackHealthReport
+} from "@muse-egg/oc-schema";
 import type { OCEventInput } from "@muse-egg/core";
 
 export interface TelegramSettingsView {
@@ -99,6 +106,12 @@ export interface MuseEggDesktopApi {
   addCharacterAsset(): Promise<OCPack>;
   removeCharacterAsset(fileName: string): Promise<OCPack>;
   getCharacterAssetPreviews(): Promise<Array<{ name: string; dataUrl: string }>>;
+  getPackHealth(): Promise<OCPackHealthReport>;
+  runIdentityTests(): Promise<OCIdentityTestReport>;
+  listBackups(): Promise<OCPackBackupEntry[]>;
+  restoreBackup(backupId: string): Promise<OCPack>;
+  scanFolderIndex(): Promise<OCFolderIndexSnapshot>;
+  addFolderIndexRoot(): Promise<OCPack>;
   dispatchEvent(input: OCEventInput): Promise<OCProcessResult>;
   getProviderStatus(): Promise<HostProviderStatusView>;
   checkUpdates(): Promise<AppUpdateStatusView>;
@@ -121,6 +134,12 @@ const api: MuseEggDesktopApi = {
   removeCharacterAsset: (fileName) => ipcRenderer.invoke("pack:remove-character-asset", fileName) as Promise<OCPack>,
   getCharacterAssetPreviews: () =>
     ipcRenderer.invoke("pack:get-character-asset-previews") as Promise<Array<{ name: string; dataUrl: string }>>,
+  getPackHealth: () => ipcRenderer.invoke("pack:health") as Promise<OCPackHealthReport>,
+  runIdentityTests: () => ipcRenderer.invoke("pack:identity-tests") as Promise<OCIdentityTestReport>,
+  listBackups: () => ipcRenderer.invoke("pack:list-backups") as Promise<OCPackBackupEntry[]>,
+  restoreBackup: (backupId) => ipcRenderer.invoke("pack:restore-backup", backupId) as Promise<OCPack>,
+  scanFolderIndex: () => ipcRenderer.invoke("folder-index:scan") as Promise<OCFolderIndexSnapshot>,
+  addFolderIndexRoot: () => ipcRenderer.invoke("folder-index:add-root") as Promise<OCPack>,
   dispatchEvent: (input) => ipcRenderer.invoke("event:dispatch", input) as Promise<OCProcessResult>,
   getProviderStatus: () => ipcRenderer.invoke("provider:get-status") as Promise<HostProviderStatusView>,
   checkUpdates: () => ipcRenderer.invoke("app:check-updates") as Promise<AppUpdateStatusView>,

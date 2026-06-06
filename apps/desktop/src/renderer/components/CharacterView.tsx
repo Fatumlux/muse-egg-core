@@ -1,6 +1,8 @@
 import { Activity, Bot, HeartPulse, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { GlassPanel, StatusPill } from "@muse-egg/ui";
 import type { AwakeningResult, OCPack } from "@muse-egg/oc-schema";
+import { museEggApi } from "../api";
 import { useI18n } from "../i18n";
 
 export interface CharacterViewProps {
@@ -10,20 +12,39 @@ export interface CharacterViewProps {
 
 export function CharacterView({ pack, awakening }: CharacterViewProps) {
   const { t } = useI18n();
+  const [previews, setPreviews] = useState<Array<{ name: string; dataUrl: string }>>([]);
   const wakeLabel = awakening
     ? `${awakening.score}/100 ${t(`awakening.level.${awakening.level}`)}`
     : t("character.sleeping");
   const life = pack.lifeState;
+  const activeExpression = awakening?.expression ?? pack.profile.defaultExpression;
+  const activeImage = useMemo(() => {
+    const binding = [...(pack.assets.characterBindings ?? [])]
+      .filter((item) => item.enabled && item.expression.trim() === activeExpression)
+      .sort((a, b) => b.priority - a.priority)[0];
+    const fileName = binding?.fileName ?? pack.assets.character.find((item) => item !== ".gitkeep");
+    return previews.find((preview) => preview.name === fileName);
+  }, [activeExpression, pack.assets.character, pack.assets.characterBindings, previews]);
+
+  useEffect(() => {
+    void museEggApi.getCharacterAssetPreviews().then(setPreviews).catch(() => setPreviews([]));
+  }, [pack.assets.character]);
 
   return (
     <GlassPanel className="character-view" title={t("character.title")}>
       <div className="character-stage">
         <div className="starlight-frame">
-          <div className="egg-core">
-            <Sparkles size={34} />
-            <strong>{pack.profile.name.slice(0, 2)}</strong>
+          <div className={`egg-core ${activeImage ? "egg-core-image" : ""}`}>
+            {activeImage ? (
+              <img src={activeImage.dataUrl} alt={pack.profile.name} />
+            ) : (
+              <>
+                <Sparkles size={34} />
+                <strong>{pack.profile.name.slice(0, 2)}</strong>
+              </>
+            )}
           </div>
-          <div className="expression-band">{awakening?.expression ?? pack.profile.defaultExpression}</div>
+          <div className="expression-band">{activeExpression}</div>
         </div>
         <div className="character-meta">
           <h2>{pack.profile.name}</h2>

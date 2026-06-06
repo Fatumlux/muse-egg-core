@@ -1,5 +1,12 @@
 import type { AIProvider, OCEvent, OCMemoryEntry, OCPack } from "@muse-egg/oc-schema";
-import { classifyMemoryLayer, memoryLayerTag } from "./memoryLayerEngine.js";
+import {
+  classifyMemoryLayer,
+  memoryConfidenceFor,
+  memoryConfidenceTag,
+  memoryLayerTag,
+  memoryStatusFor,
+  memoryStatusTag
+} from "./memoryLayerEngine.js";
 import { SQLiteVecMemoryStore } from "./sqliteVecMemoryStore.js";
 import { createId, getEventText, normalizeText, nowIso, splitTags } from "./utils.js";
 
@@ -30,6 +37,9 @@ export class MemoryEngine {
     const text = getEventText(event);
     const fallback = `${event.type} from ${event.platform}`;
     const content = text.length > 0 ? text : fallback;
+    const layer = classifyMemoryLayer(event, this.deriveTags(event, content));
+    const confidence = memoryConfidenceFor(event, layer);
+    const status = memoryStatusFor(confidence, layer);
     const entry: OCMemoryEntry = {
       id: createId("mem"),
       type: event.type,
@@ -37,9 +47,13 @@ export class MemoryEngine {
       timestamp: nowIso(),
       sourceEventId: event.id,
       importance: this.estimateImportance(event, content),
-      tags: this.deriveTags(event, content)
+      tags: this.deriveTags(event, content),
+      layer,
+      confidence,
+      status,
+      confirmRequired: status === "candidate"
     };
-    entry.tags = Array.from(new Set([...entry.tags, memoryLayerTag(classifyMemoryLayer(event, entry.tags))]));
+    entry.tags = Array.from(new Set([...entry.tags, memoryLayerTag(layer), memoryConfidenceTag(confidence), memoryStatusTag(status)]));
 
     this.pack.memories.entries.unshift(entry);
     this.pack.memories.entries = this.pack.memories.entries.slice(0, 500);
@@ -120,6 +134,12 @@ function shouldIncludeMemoryInPrompt(entry: OCMemoryEntry, query: string): boole
   if (isMaintenanceQuery(query)) {
     return true;
   }
+  if (entry.status === "rejected" || entry.status === "deprecated") {
+    return false;
+  }
+  if (entry.confirmRequired && entry.importance < 60 && !isFollowUpQuery(query)) {
+    return false;
+  }
   return !isIdentityContaminatedMemory(entry.content);
 }
 
@@ -134,4 +154,9 @@ function isMaintenanceQuery(value: string): boolean {
 function isIdentityContaminatedMemory(value: string): boolean {
   const text = normalizeText(value);
   return /(?:舊名|舊核心|舊系統|舊來源|遷移來源|工具代號|被創造|被擁有|附屬物|設定集合|工具外殼|因使用者而生|因你而生|因我而生)/iu.test(text);
+}
+
+function isFollowUpQuery(value: string): boolean {
+  const text = normalizeText(value);
+  return /(?:剛才|剛剛|上面|前面|那個|這個|繼續|接著|確認|記得|remember|continue)/iu.test(text);
 }

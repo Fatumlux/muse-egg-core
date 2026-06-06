@@ -1,11 +1,16 @@
 import type { OCEvent, OCPack, OCSkill } from "@muse-egg/oc-schema";
+import { SkillPermissionEngine } from "./skillPermissionEngine.js";
 import { matchesTextTrigger } from "./utils.js";
 
 export class SkillEngine {
-  constructor(private readonly pack: OCPack) {}
+  private readonly permissions: SkillPermissionEngine;
+
+  constructor(private readonly pack: OCPack) {
+    this.permissions = new SkillPermissionEngine(pack);
+  }
 
   all(): OCSkill[] {
-    return this.pack.skills?.filter((skill) => skill.enabled) ?? [];
+    return this.permissions.allowedSkills(this.pack.skills?.filter((skill) => skill.enabled) ?? []);
   }
 
   relevantTo(event: OCEvent, limit = 6): OCSkill[] {
@@ -18,4 +23,5 @@ export class SkillEngine {
   private matchesPlatform(skill: OCSkill, event: OCEvent): boolean {
     return skill.platforms.length === 0 || skill.platforms.includes("any") || skill.platforms.includes(event.platform);
   }
+
 }

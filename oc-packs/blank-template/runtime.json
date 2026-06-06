@@ -23,5 +23,45 @@
     "maxResponseBytes": 524288,
     "userAgent": "MuseEgg-Core/0.1",
     "webSearchEnabled": false
+  },
+  "context": {
+    "enabled": true,
+    "maxRecentEvents": 12,
+    "maxPromptChars": 6000,
+    "includeRuntimeEnvironment": true,
+    "includeLifeState": true
+  },
+  "folderIndex": {
+    "enabled": true,
+    "roots": [],
+    "maxFiles": 2000,
+    "includeExtensions": [
+      ".md",
+      ".txt",
+      ".json",
+      ".png",
+      ".jpg",
+      ".jpeg",
+      ".webp"
+    ],
+    "excludePatterns": [
+      "node_modules",
+      ".git",
+      ".museegg/backups",
+      ".museegg/memory"
+    ],
+    "refreshIntervalMinutes": 60
+  },
+  "quality": {
+    "enabled": true,
+    "blockIdentityDrift": true,
+    "blockPrivateDataLeak": true,
+    "blockIncompleteResponse": true,
+    "recordReports": true
+  },
+  "updates": {
+    "enabled": true,
+    "checkOnStartup": true,
+    "checkIntervalHours": 24
   }
 }

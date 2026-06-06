@@ -32,6 +32,9 @@ export interface AIProvider {
 - `lore`
 - `guardRules`
 - `skills`
+- `context`
+
+`context` 是短期上下文快照，包含目前事件、最近訊息、runtime 設定與安全備註。自接 provider 時應先使用 `request.context` 理解「剛才、上面、那個、這件事」等指涉，再參照長期記憶與世界觀。
 
 ## 最小範例
 
@@ -53,6 +56,10 @@ const myProvider: AIProvider = {
           request.pack.soulFiles?.["IDENTITY.md"] ?? "",
           request.pack.soulFiles?.["SOUL.md"] ?? "",
           request.skills?.map((skill) => skill.instructions).join("\n\n") ?? "",
+          request.context?.notes.join("\n") ?? "",
+          request.context?.recentMessages
+            .map((message) => `${message.speaker}: ${message.text}`)
+            .join("\n") ?? "",
           `使用者事件：${JSON.stringify(request.event.payload)}`
         ].join("\n\n")
       })

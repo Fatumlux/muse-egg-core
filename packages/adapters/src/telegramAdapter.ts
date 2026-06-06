@@ -17,6 +17,14 @@ interface TelegramUpdate {
   message?: {
     message_id: number;
     text?: string;
+    caption?: string;
+    photo?: Array<{
+      file_id: string;
+      file_unique_id: string;
+      width: number;
+      height: number;
+      file_size?: number;
+    }>;
     chat: {
       id: number;
       type: string;
@@ -28,6 +36,7 @@ interface TelegramUpdate {
       is_bot?: boolean;
     };
     reply_to_message?: {
+      message_id?: number;
       from?: {
         id: number;
         username?: string;
@@ -160,7 +169,8 @@ export class TelegramAdapter {
 
   private async handleUpdate(update: TelegramUpdate): Promise<void> {
     const message = update.message;
-    if (!message?.text) {
+    const messageText = messageTextForCore(message);
+    if (!message || !messageText) {
       this.ignore("no_text_message");
       return;
     }
@@ -189,12 +199,20 @@ export class TelegramAdapter {
         platform: "telegram",
         source: "telegram_polling",
         payload: {
-          text: message.text,
+          text: messageText,
           chatId: message.chat.id,
           messageId: message.message_id,
           userId: message.from?.id,
           username: message.from?.username,
-          firstName: message.from?.first_name
+          firstName: message.from?.first_name,
+          replyToMessageId: message.reply_to_message?.message_id,
+          photo: message.photo?.map((item) => ({
+            fileId: item.file_id,
+            fileUniqueId: item.file_unique_id,
+            width: item.width,
+            height: item.height,
+            fileSize: item.file_size
+          }))
         }
       });
     } finally {
@@ -203,7 +221,7 @@ export class TelegramAdapter {
 
     const text = this.router.routeToTelegram(routed);
     if (text) {
-      await this.sendMessage(message.chat.id, text);
+      await this.sendMessage(message.chat.id, text, message.message_id);
       this.runtimeStatus.handledMessages += 1;
       this.runtimeStatus.lastHandledAt = new Date().toISOString();
       return;
@@ -234,7 +252,7 @@ export class TelegramAdapter {
       return { allowed: true, reason: "private_or_group_gate_off" };
     }
 
-    const text = (message.text ?? "").toLowerCase();
+    const text = (messageTextForCore(message) ?? "").toLowerCase();
     const patterns = this.mentionPatterns();
     const mentioned = patterns.some((pattern) => text.includes(pattern.toLowerCase()));
     const repliedToBot =
@@ -253,13 +271,18 @@ export class TelegramAdapter {
     return Array.from(new Set([...configured, ...(username ? [`@${username.replace(/^@/u, "")}`] : [])]));
   }
 
-  private async sendMessage(chatId: number, text: string): Promise<void> {
-    await this.callApi("sendMessage", {
-      chat_id: chatId,
-      text
-    });
-    this.runtimeStatus.sentMessages += 1;
-    this.runtimeStatus.lastSentAt = new Date().toISOString();
+  private async sendMessage(chatId: number, text: string, replyToMessageId?: number): Promise<void> {
+    const chunks = splitTelegramMessage(text);
+    for (const chunk of chunks) {
+      await this.callApi("sendMessage", {
+        chat_id: chatId,
+        text: chunk,
+        reply_to_message_id: replyToMessageId,
+        allow_sending_without_reply: true
+      });
+      this.runtimeStatus.sentMessages += 1;
+      this.runtimeStatus.lastSentAt = new Date().toISOString();
+    }
   }
 
   private async sendTyping(chatId: number): Promise<void> {
@@ -304,4 +327,39 @@ function delay(ms: number): Promise<void> {
 
 function isGroupChat(type: string): boolean {
   return type === "group" || type === "supergroup" || type === "channel";
+}
+
+function messageTextForCore(message: TelegramUpdate["message"] | undefined): string | undefined {
+  if (!message) {
+    return undefined;
+  }
+  if (message.text?.trim()) {
+    return message.text.trim();
+  }
+  if (message.caption?.trim()) {
+    return message.caption.trim();
+  }
+  if (message.photo?.length) {
+    return "[telegram_photo]";
+  }
+  return undefined;
+}
+
+function splitTelegramMessage(text: string): string[] {
+  const limit = 3800;
+  const clean = text.trim();
+  if (clean.length <= limit) {
+    return [clean];
+  }
+
+  const chunks: string[] = [];
+  let cursor = 0;
+  while (cursor < clean.length) {
+    const next = clean.slice(cursor, cursor + limit);
+    const boundary = Math.max(next.lastIndexOf("\n"), next.lastIndexOf("。"), next.lastIndexOf("！"), next.lastIndexOf("？"));
+    const size = boundary > 400 ? boundary + 1 : next.length;
+    chunks.push(clean.slice(cursor, cursor + size).trim());
+    cursor += size;
+  }
+  return chunks.filter(Boolean);
 }

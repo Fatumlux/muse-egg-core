@@ -68,6 +68,11 @@ export interface OCMemoryEntry {
   sourceEventId?: string;
   importance: number;
   tags: string[];
+  layer?: OCMemoryLayer;
+  confidence?: OCMemoryConfidence;
+  status?: OCMemoryStatus;
+  confirmRequired?: boolean;
+  confirmedAt?: string;
 }
 
 export interface OCMemoryVault {
@@ -75,6 +80,8 @@ export interface OCMemoryVault {
 }
 
 export type OCMemoryLayer = "identity" | "canon" | "long_term" | "short_term" | "observation" | "ephemeral";
+export type OCMemoryConfidence = "confirmed" | "observed" | "inferred" | "speculative";
+export type OCMemoryStatus = "candidate" | "confirmed" | "deprecated" | "rejected";
 
 export interface OCMemoryStoreConfig {
   enabled: boolean;
@@ -229,9 +236,44 @@ export interface OCNetworkRuntimeSettings {
   webSearchEnabled: boolean;
 }
 
+export interface OCContextRuntimeSettings {
+  enabled: boolean;
+  maxRecentEvents: number;
+  maxPromptChars: number;
+  includeRuntimeEnvironment: boolean;
+  includeLifeState: boolean;
+}
+
+export interface OCFolderIndexRuntimeSettings {
+  enabled: boolean;
+  roots: string[];
+  maxFiles: number;
+  includeExtensions: string[];
+  excludePatterns: string[];
+  refreshIntervalMinutes: number;
+}
+
+export interface OCQualityRuntimeSettings {
+  enabled: boolean;
+  blockIdentityDrift: boolean;
+  blockPrivateDataLeak: boolean;
+  blockIncompleteResponse: boolean;
+  recordReports: boolean;
+}
+
+export interface OCUpdateRuntimeSettings {
+  enabled: boolean;
+  checkOnStartup: boolean;
+  checkIntervalHours: number;
+}
+
 export interface OCRuntimeSettings {
   local: OCLocalRuntimeSettings;
   network: OCNetworkRuntimeSettings;
+  context: OCContextRuntimeSettings;
+  folderIndex: OCFolderIndexRuntimeSettings;
+  quality: OCQualityRuntimeSettings;
+  updates: OCUpdateRuntimeSettings;
 }
 
 export interface OCPrompts {
@@ -274,10 +316,19 @@ export interface OCSkill {
   path?: string;
 }
 
+export interface OCCharacterAssetBinding {
+  id: string;
+  expression: string;
+  fileName: string;
+  enabled: boolean;
+  priority: number;
+}
+
 export interface OCPackAssets {
   character: string[];
   live2d: string[];
   voice: string[];
+  characterBindings?: OCCharacterAssetBinding[];
 }
 
 export interface OCPack {
@@ -323,6 +374,45 @@ export interface OCResponse {
   guarded: boolean;
 }
 
+export type OCQualitySignal =
+  | "identity_drift"
+  | "generic_assistant_drift"
+  | "private_data_risk"
+  | "destructive_action_risk"
+  | "incomplete_response"
+  | "uses_markdown_emphasis"
+  | "unsupported_claim";
+
+export interface OCResponseQualityReport {
+  ok: boolean;
+  score: number;
+  signals: OCQualitySignal[];
+  notes: string[];
+  checkedAt: string;
+}
+
+export type OCContextSpeaker = "user" | "oc" | "system";
+
+export interface OCContextMessage {
+  id: string;
+  type: OCEventType;
+  timestamp: string;
+  platform: OCPlatform;
+  speaker: OCContextSpeaker;
+  text: string;
+}
+
+export interface OCContextSnapshot {
+  enabled: boolean;
+  currentEvent: OCContextMessage;
+  recentMessages: OCContextMessage[];
+  notes: string[];
+  limits: {
+    maxRecentEvents: number;
+    maxPromptChars: number;
+  };
+}
+
 export interface AwakeningResult {
   score: number;
   level: AwakeningLevel;
@@ -339,6 +429,8 @@ export interface OCProcessResult {
   memory?: OCMemoryEntry;
   selfGrowth?: OCSelfGrowthDecision;
   growthProposals?: OCGrowthProposal[];
+  quality?: OCResponseQualityReport;
+  growthJournal?: OCGrowthJournalEntry;
   lifeState?: OCLifeState;
   guardRuleIds: string[];
 }
@@ -362,10 +454,89 @@ export interface OCValidationResult {
   issues: OCValidationIssue[];
 }
 
+export interface OCIdentityTestCase {
+  id: string;
+  prompt: string;
+  expectedName: string;
+  platform: OCPlatform;
+}
+
+export interface OCIdentityTestResult {
+  caseId: string;
+  prompt: string;
+  responseText: string;
+  passed: boolean;
+  issues: string[];
+}
+
+export interface OCIdentityTestReport {
+  ok: boolean;
+  passed: number;
+  failed: number;
+  generatedAt: string;
+  results: OCIdentityTestResult[];
+}
+
+export interface OCPackHealthReport {
+  ok: boolean;
+  score: number;
+  generatedAt: string;
+  issues: OCValidationIssue[];
+  identity?: OCIdentityTestReport;
+  privateDataFindings: OCValidationIssue[];
+  assetFindings: OCValidationIssue[];
+  skillFindings: OCValidationIssue[];
+}
+
+export interface OCPackBackupEntry {
+  id: string;
+  path: string;
+  createdAt: string;
+  files: string[];
+}
+
+export interface OCGrowthJournalEntry {
+  id: string;
+  date: string;
+  title: string;
+  summary: string;
+  eventId?: string;
+  memoryId?: string;
+  proposalIds: string[];
+  qualitySignals: OCQualitySignal[];
+  createdAt: string;
+}
+
+export interface OCFolderIndexItem {
+  path: string;
+  name: string;
+  extension: string;
+  size: number;
+  modifiedAt: string;
+  root: string;
+}
+
+export interface OCFolderIndexSnapshot {
+  generatedAt: string;
+  roots: string[];
+  items: OCFolderIndexItem[];
+  truncated: boolean;
+  issues: OCValidationIssue[];
+}
+
+export interface OCSkillPermissionAudit {
+  skillId: string;
+  allowed: boolean;
+  missingPermissions: string[];
+  blockedPermissions: string[];
+  notes: string[];
+}
+
 export interface AIProviderRequest {
   pack: OCPack;
   event: OCEvent;
   model?: string;
+  context?: OCContextSnapshot;
   memories: OCMemoryEntry[];
   lore: OCLoreEntry[];
   guardRules: OCGuardRule[];

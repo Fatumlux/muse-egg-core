@@ -35,6 +35,12 @@ Before opening a PR:
 3. Update README or docs when changing OC Pack behavior.
 4. Add or update example Pack fields when changing schema expectations.
 
+## Maintainer Publishing
+
+Ordinary MuseEgg users do not need to push to GitHub to use MuseEgg Core or their OC Packs.
+
+GitHub publishing, releases, and public repository updates are maintainer-only workflows. Do not add GitHub push behavior to OC runtime settings, OC skills, Telegram flows, or starter OC Packs.
+
 ## Security Notes
 
 - Renderer code must not use Node `fs`.

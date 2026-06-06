@@ -18,6 +18,7 @@ Required files:
 - `life-state.json`
 - `companion.json`
 - `runtime.json`
+- `asset-bindings.json` is optional
 - `prompts/base-system.md`
 - `prompts/response-style.md`
 
@@ -41,6 +42,10 @@ Required asset folders:
 - `assets/live2d`
 - `assets/voice`
 
+Optional asset bindings:
+
+- `asset-bindings.json` maps character image files to expressions used by the UI.
+
 Soul files are loaded into `pack.soulFiles` when present. See [OC 生命文件層](soul-files.md).
 
 Skills are loaded into `pack.skills` when present. See [OC Skills](skills.md).
@@ -51,7 +56,7 @@ Self-growth files:
 - `growth-proposals.json` stores pending / approved / rejected / applied growth proposals, including `self_rewrite` drafts for profile, prompts, reaction rules, and lore candidates.
 - `life-state.json` stores mood, energy, trust, bond, wakefulness, stress, and a short state summary.
 - `companion.json` stores desktop pet, website sync, startup, relationship mode, and notification settings.
-- `runtime.json` stores local time, locale, Pack file boundaries, network request policy, allowed hosts, and blocked hosts.
+- `runtime.json` stores local time, locale, Pack file boundaries, network request policy, allowed hosts, blocked hosts, context window settings, fixed folder index settings, quality checks, and update checks.
 
 Runtime continuity files are created lazily:
 
@@ -64,7 +69,11 @@ Pack export creates version backups before writing:
 
 - `.museegg/backups/<timestamp>/`
 
-See [Anti-Amnesia 設計](anti-amnesia.md).
+Growth journal files are created lazily:
+
+- `.museegg/growth-journal/YYYY-MM-DD.jsonl`
+
+See [Anti-Amnesia 設計](anti-amnesia.md) and [MuseEgg Life Systems](life-systems.md).
 
 ## Event Types
 

@@ -479,6 +479,7 @@ label span {
 }
 
 .starlight-frame {
+  position: relative;
   display: grid;
   place-items: center;
   min-height: 244px;
@@ -490,6 +491,8 @@ label span {
 }
 
 .egg-core {
+  position: relative;
+  isolation: isolate;
   display: grid;
   place-items: center;
   gap: 8px;
@@ -505,8 +508,33 @@ label span {
     0 28px 70px rgba(110, 231, 249, 0.18);
 }
 
+.egg-core-image {
+  width: 126px;
+  height: 126px;
+  padding: 5px;
+  border-radius: 50%;
+  overflow: hidden;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(110, 231, 249, 0.68) 56%, rgba(255, 138, 179, 0.64)),
+    rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.3),
+    0 18px 42px rgba(110, 231, 249, 0.18),
+    0 0 44px rgba(255, 138, 179, 0.14);
+}
+
 .egg-core strong {
   font-size: 28px;
+}
+
+.egg-core img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  object-position: center;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
 
 .expression-band {
@@ -1360,6 +1388,61 @@ label span {
 
 .platform-status {
   margin: 0 14px;
+}
+
+.health-center {
+  display: grid;
+  gap: 14px;
+}
+
+.health-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.issue-list,
+.health-folder-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issue-list li,
+.health-folder-list li,
+.identity-results article,
+.backup-list article {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  overflow-wrap: anywhere;
+}
+
+.issue-list code {
+  color: var(--cyan);
+  white-space: nowrap;
+}
+
+.identity-results,
+.backup-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.identity-results article > span,
+.backup-list article span {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .sparkline-strip {

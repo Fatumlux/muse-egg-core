@@ -79,10 +79,85 @@ export function AssetManager({ pack, onChange }: AssetManagerProps) {
         items={pack.assets.character.filter((item) => item !== ".gitkeep")}
         onRemove={removeCharacterAsset}
       />
+      <section className="asset-list">
+        <div>
+          <StatusPill tone="cyan">{t("assets.bindings")}</StatusPill>
+          <button type="button" onClick={() => addBinding()}>{t("assets.addBinding")}</button>
+        </div>
+        {(pack.assets.characterBindings ?? []).length === 0 ? (
+          <p className="empty-line">{t("assets.noFiles")}</p>
+        ) : (
+          <ul>
+            {(pack.assets.characterBindings ?? []).map((binding) => (
+              <li key={binding.id}>
+                <input
+                  aria-label={t("assets.bindingExpression")}
+                  value={binding.expression}
+                  onChange={(event) => updateBinding(binding.id, { expression: event.target.value })}
+                />
+                <select
+                  aria-label={t("assets.bindingImage")}
+                  value={binding.fileName}
+                  onChange={(event) => updateBinding(binding.id, { fileName: event.target.value })}
+                >
+                  {pack.assets.character.filter((item) => item !== ".gitkeep").map((fileName) => (
+                    <option key={fileName} value={fileName}>{fileName}</option>
+                  ))}
+                </select>
+                <button type="button" aria-label={t("assets.removeBinding")} title={t("assets.removeBinding")} onClick={() => removeBinding(binding.id)}>
+                  <Trash2 size={13} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
       <AssetList title="Live2D" tone="violet" items={pack.assets.live2d.filter((item) => item !== ".gitkeep")} />
       <AssetList title="Voice" tone="rose" items={pack.assets.voice.filter((item) => item !== ".gitkeep")} />
     </div>
   );
+
+  function addBinding() {
+    const firstImage = pack.assets.character.find((item) => item !== ".gitkeep") ?? "";
+    onChange({
+      ...pack,
+      assets: {
+        ...pack.assets,
+        characterBindings: [
+          ...(pack.assets.characterBindings ?? []),
+          {
+            id: `asset-binding-${Date.now()}`,
+            expression: pack.profile.defaultExpression,
+            fileName: firstImage,
+            enabled: true,
+            priority: 50
+          }
+        ]
+      }
+    });
+  }
+
+  function updateBinding(id: string, patch: Partial<NonNullable<OCPack["assets"]["characterBindings"]>[number]>) {
+    onChange({
+      ...pack,
+      assets: {
+        ...pack.assets,
+        characterBindings: (pack.assets.characterBindings ?? []).map((binding) =>
+          binding.id === id ? { ...binding, ...patch } : binding
+        )
+      }
+    });
+  }
+
+  function removeBinding(id: string) {
+    onChange({
+      ...pack,
+      assets: {
+        ...pack.assets,
+        characterBindings: (pack.assets.characterBindings ?? []).filter((binding) => binding.id !== id)
+      }
+    });
+  }
 }
 
 function AssetList({

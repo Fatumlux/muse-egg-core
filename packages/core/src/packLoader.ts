@@ -4,6 +4,7 @@ import {
   assertOCPack,
   ocSoulFileNames,
   type OCCompanionSettings,
+  type OCCharacterAssetBinding,
   type OCGrowthProposalVault,
   type OCLifeState,
   type OCMemoryStoreConfig,
@@ -29,7 +30,8 @@ export async function loadOCPack(packPath: string): Promise<OCPack> {
     assets: {
       character: await listFiles(join(packPath, "assets", "character")),
       live2d: await listFiles(join(packPath, "assets", "live2d")),
-      voice: await listFiles(join(packPath, "assets", "voice"))
+      voice: await listFiles(join(packPath, "assets", "voice")),
+      characterBindings: await readOptionalJson<OCCharacterAssetBinding[]>(join(packPath, "asset-bindings.json"))
     },
     prompts: {
       baseSystem: await readText(join(packPath, "prompts", "base-system.md")),

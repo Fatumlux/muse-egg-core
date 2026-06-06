@@ -6,6 +6,7 @@ import {
   Egg,
   Globe2,
   HeartHandshake,
+  HeartPulse,
   Image,
   Inbox,
   MessageCircle,
@@ -43,6 +44,7 @@ const tabItems: Array<{ id: StudioTab; labelKey: string; icon: JSX.Element }> = 
   { id: "growth", labelKey: "nav.growth", icon: <Sprout size={16} /> },
   { id: "proposals", labelKey: "nav.proposals", icon: <Inbox size={16} /> },
   { id: "permissions", labelKey: "nav.permissions", icon: <ShieldCheck size={16} /> },
+  { id: "health", labelKey: "nav.health", icon: <HeartPulse size={16} /> },
   { id: "companion", labelKey: "nav.companion", icon: <HeartHandshake size={16} /> },
   { id: "runtime", labelKey: "nav.runtime", icon: <Globe2 size={16} /> },
   { id: "skills", labelKey: "nav.skills", icon: <Wrench size={16} /> },
@@ -81,10 +83,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void museEggApi
-      .checkUpdates()
-      .then((next) => setUpdateStatus(next))
-      .catch(() => undefined);
+    const check = () => {
+      void museEggApi
+        .checkUpdates()
+        .then((next) => setUpdateStatus(next))
+        .catch(() => undefined);
+    };
+    check();
+    const timer = window.setInterval(check, 24 * 60 * 60 * 1000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -236,9 +243,6 @@ export default function App() {
           dirty={dirty}
           status={statusText}
           onLoadActive={async () => replacePack(await museEggApi.loadActivePack(), { key: "app.loadedLocal" })}
-          onLoadExample={async () => replacePack(await museEggApi.loadExamplePack(), { key: "app.loadedExample" })}
-          onLoadBlank={async () => replacePack(await museEggApi.loadBlankPack(), { key: "app.loadedBlank" })}
-          onImport={async () => replacePack(await museEggApi.importPack(), { key: "app.imported" })}
           onSave={async () => {
             const saved = await museEggApi.savePack(pack);
             replacePack(saved, { key: "app.saved" });

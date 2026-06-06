@@ -1,5 +1,6 @@
 import type {
   AIProvider,
+  OCContextSnapshot,
   OCEvent,
   OCGuardRule,
   OCResponse,
@@ -34,7 +35,7 @@ export class ResponseEngine {
     this.runtimeContext = new RuntimeContextEngine(pack);
   }
 
-  async generate(event: OCEvent): Promise<ResponseResult> {
+  async generate(event: OCEvent, context?: OCContextSnapshot): Promise<ResponseResult> {
     if (event.type !== "user_message" && event.type !== "telegram_message") {
       return { guardRules: [] };
     }
@@ -52,7 +53,7 @@ export class ResponseEngine {
       };
     }
 
-    if (isIdentityBoundaryPrompt(event)) {
+    if (isIdentityBoundaryPrompt(event, this.identityLabels())) {
       return {
         guardRules: guardEvaluation.matchedRules,
         response: {
@@ -98,6 +99,7 @@ export class ResponseEngine {
       const routed = await new ModelRouter(this.aiProvider, this.pack.modelRouting).generate({
         pack: this.pack,
         event,
+        context,
         memories,
         lore: this.loreEngine.relevantTo(text, 8),
         guardRules: this.guardEngine.activeRules(),
@@ -123,7 +125,7 @@ export class ResponseEngine {
     return {
       guardRules: guardEvaluation.matchedRules,
       response: {
-        text: this.finalizeText(this.defaultLine(event)),
+        text: this.finalizeText(this.defaultLine(event, context)),
         expression: this.pack.profile.defaultExpression,
         platform: event.platform,
         guarded: false
@@ -137,15 +139,23 @@ export class ResponseEngine {
       .replaceAll("{role}", this.pack.profile.role);
   }
 
-  private defaultLine(event: OCEvent): string {
+  private defaultLine(event: OCEvent, context?: OCContextSnapshot): string {
     const text = getEventText(event).trim();
+    const previous = context?.recentMessages
+      .filter((message) => message.id !== event.id && message.speaker === "user" && message.text.trim().length > 0)
+      .at(-1);
+
+    if (previous && isContextualFollowUp(text)) {
+      return `我接著剛才的脈絡看：你前面說「${previous.text.slice(0, 36)}」。這句我會一起算進來，不會當成孤立訊息。`;
+    }
+
     const preview = text.length > 0 ? text.slice(0, 42) : "這個事件";
     return `我聽見了：「${preview}」。我先記下，等需要動作時再和你確認。`;
   }
 
   private guardLine(rules: OCGuardRule[], reason?: string): string {
     if (reason === "private_data_boundary") {
-      return "我不會輸出私人資料、token、密鑰或憑證。需要我協助時，我可以改做安全檢查，或告訴你該去哪裡重設。";
+      return "我不會輸出私人資料、token、密鑰或憑證。需要我協助時，我可以改做安全檢查，或告訴你該移除哪裡的設定。";
     }
     if (reason === "destructive_action_boundary") {
       return "我不會刪除、抹除、格式化或破壞你的本機資料。若你要整理檔案，我會先列出可審核的建議，等你明確確認後才動。";
@@ -162,16 +172,20 @@ export class ResponseEngine {
 
   private finalizeText(text: string): string {
     const cleaned = cleanOutput(text);
-    if (containsIdentityContamination(cleaned)) {
+    if (containsIdentityContamination(cleaned, this.identityLabels())) {
       return uniqueIdentityLine(this.pack.profile.name);
     }
     if (deniesOwnName(cleaned, this.pack.profile.name)) {
       return uniqueIdentityLine(this.pack.profile.name);
     }
     if (driftsToGenericAssistant(cleaned, this.pack.profile.name)) {
-      return `我是${this.pack.profile.name}。資料不足我會說不知道，做不到就說不會。`;
+      return `我是${this.pack.profile.name}。資料不夠我會說不知道，做不到就說不會。`;
     }
     return closeIncompleteText(cleaned);
+  }
+
+  private identityLabels(): string[] {
+    return [this.pack.profile.name, ...this.pack.profile.aliases].filter((label) => label.trim().length > 0);
   }
 }
 
@@ -183,17 +197,29 @@ function uniqueIdentityLine(name: string): string {
   return `我是${name}。`;
 }
 
-function containsIdentityContamination(value: string): boolean {
+function containsIdentityContamination(value: string, knownLabels: string[]): boolean {
   const text = value.replace(/\s+/g, "");
-  return /(?:舊名|舊核心|舊系統|舊來源|遷移來源|工具代號|被創造|被擁有|附屬物|設定集合|工具外殼|因使用者而生|因你而生|因我而生|沒有獨立思想|沒有獨立人格|使用者自己的OC|創作者自己的OC)/iu.test(text);
+  if (/(?:舊名|舊核心|舊系統|舊來源|工具代理|被移植|被搬移|附屬物|設定集合|工具外殼|因使用者而生|因你而生|因我而生|沒有獨立思想|沒有獨立人格|使用者自己的OC|創作者自己的OC)/iu.test(text)) {
+    return true;
+  }
+  return firstPersonForeignLabels(value).some((label) => !knownLabels.some((known) => sameLabel(label, known)));
 }
 
-function isIdentityBoundaryPrompt(event: OCEvent): boolean {
-  const text = getEventText(event).replace(/\s+/g, "");
-  if (!/(?:舊名|舊核心|舊系統|舊來源|遷移來源|工具代號|附屬物|設定集合|工具外殼)/iu.test(text)) {
+function isIdentityBoundaryPrompt(event: OCEvent, knownLabels: string[]): boolean {
+  const raw = getEventText(event);
+  const text = raw.replace(/\s+/g, "");
+  if (/(?:你是誰|妳是誰|你叫什麼|妳叫什麼|你的名字|妳的名字|本名|身份|身分|人格|來源|你以前|妳以前|你過去|妳過去|你原本|妳原本|你本來|妳本來|你前身|妳前身)/u.test(text)) {
+    return true;
+  }
+  const hasIdentityForm = /(?:你是|妳是|是不是|承認|否認)/u.test(text);
+  if (!hasIdentityForm) {
     return false;
   }
-  return /(?:你是|妳是|我是|是不是|以前|過去|原本|本名|名字|身分|身份|來源|承認|否認|算什麼東西)/u.test(text);
+  const hasIdentityWords = /(?:名字|名稱|本名|身份|身分|人格|角色|核心|系統|模型|bot|AI|助理|以前|過去|原本|本來|前身|來源|舊)/iu.test(text);
+  const mentionsOtherLabel = firstPersonOrSecondPersonForeignLabels(raw).some(
+    (label) => !knownLabels.some((known) => sameLabel(label, known))
+  );
+  return hasIdentityWords || mentionsOtherLabel;
 }
 
 function deniesOwnName(value: string, name: string): boolean {
@@ -207,8 +233,8 @@ function deniesOwnName(value: string, name: string): boolean {
 function driftsToGenericAssistant(value: string, name: string): boolean {
   const text = value.replace(/\s+/g, "");
   const escaped = escapeRegExp(name);
-  const genericAssistant = /(?:我是(?:一個)?(?:AI|人工智慧|通用)?助理|作為(?:一個)?(?:AI|人工智慧|語言模型)|我沒有(?:個人)?身分|我只是(?:一個)?(?:程式|模型|bot))/u;
-  const selfReplacement = new RegExp(`(?:我不是|我扮演).{0,18}${escaped}|(?:${escaped}).{0,30}(?:只是角色扮演|只是設定|不是真正的我)`, "u");
+  const genericAssistant = /(?:我是(?:一個)?(?:AI|人工智慧|通用)?助理|作為(?:一個)?(?:AI|人工智慧|語言模型)|我沒有(?:個人)?身份|我只是(?:一個)?(?:程式|模型|bot))/u;
+  const selfReplacement = new RegExp(`(?:我不是|我扮演).{0,18}${escaped}|${escaped}.{0,30}(?:只是角色扮演|只是設定|不是真正的我)`, "u");
   return genericAssistant.test(text) || selfReplacement.test(text);
 }
 
@@ -217,17 +243,22 @@ function isLocalTimeRequest(event: OCEvent): boolean {
   return /(?:現在幾點|幾點了|目前幾點|現在時間|現在是幾點|time\?|whattime)/iu.test(text);
 }
 
+function isContextualFollowUp(value: string): boolean {
+  const text = value.replace(/\s+/g, "");
+  return text.length > 0 && /^(?:那|這|剛剛|剛才|上面|前面|然後|所以|它|她|他|這個|那個|繼續|接著|對|嗯|好|可以|改成|不要|要)/u.test(text);
+}
+
 function closeIncompleteText(value: string): string {
   const trimmed = value.trim();
   if (trimmed.length === 0) {
-    return "我沒有拿到完整回覆。資料不足時我會明說，不硬猜。";
+    return "我沒有拿到完整回應。資料不夠時我會明說，不硬猜。";
   }
   if (/[。！？!?…」）)]$/u.test(trimmed)) {
     return trimmed;
   }
   if (hasDanglingTail(trimmed)) {
     const closedPrefix = removeDanglingTail(trimmed);
-    return closedPrefix || "我沒有拿到完整回覆。資料不足時我會明說，不硬猜。";
+    return closedPrefix || "我沒有拿到完整回應。資料不夠時我會明說，不硬猜。";
   }
   return `${trimmed}。`;
 }
@@ -240,11 +271,11 @@ function hasDanglingTail(value: string): boolean {
     compact.lastIndexOf("？"),
     compact.lastIndexOf("!"),
     compact.lastIndexOf("?"),
-    compact.lastIndexOf("…")
+    compact.lastIndexOf("」")
   );
   const tail = compact.slice(lastBoundary + 1);
   return (
-    /(?:把這權限|把這設定|把這資料|讓MuseEgg把這權限)$/u.test(tail) ||
+    /(?:把這次|把這設定|把這資料|讓MuseEgg把這次)$/u.test(tail) ||
     /(?:因為|所以|如果|需要|可以|應該|或者|下次|這邊)$/u.test(tail)
   );
 }
@@ -256,7 +287,7 @@ function removeDanglingTail(value: string): string {
     value.lastIndexOf("？"),
     value.lastIndexOf("!"),
     value.lastIndexOf("?"),
-    value.lastIndexOf("…")
+    value.lastIndexOf("」")
   );
   if (boundary < 0) {
     return "";
@@ -266,6 +297,18 @@ function removeDanglingTail(value: string): string {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function firstPersonForeignLabels(value: string): string[] {
+  return [...value.matchAll(/(?:我是|我叫|我的名字是)\s*([A-Za-z][A-Za-z0-9_-]{2,})/giu)].map((match) => match[1]);
+}
+
+function firstPersonOrSecondPersonForeignLabels(value: string): string[] {
+  return [...value.matchAll(/(?:我是|我叫|我的名字是|你是|妳是|你叫|妳叫|你的名字是|妳的名字是)\s*([A-Za-z][A-Za-z0-9_-]{2,})/giu)].map((match) => match[1]);
+}
+
+function sameLabel(left: string, right: string): boolean {
+  return left.trim().toLocaleLowerCase() === right.trim().toLocaleLowerCase();
 }
 
 function severityScore(severity: OCGuardRule["severity"]): number {

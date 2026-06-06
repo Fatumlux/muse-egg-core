@@ -1,13 +1,18 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { mkdir, readFile, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, extname, join, resolve } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { TelegramAdapter, type TelegramAdapterSettings } from "@muse-egg/adapters";
 import {
   exportOCPack,
+  FolderIndexEngine,
+  IdentityTestEngine,
+  listPackBackups,
   loadOCPack,
   OCEngine,
+  PackHealthEngine,
   PlatformRouter,
+  restorePackBackup,
   saveOCPack,
   type OCEventInput
 } from "@muse-egg/core";
@@ -146,6 +151,51 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     ensureEngine(reloaded);
     await writeActivePackPath(exportedPath, "export");
     sendJson(response, 200, reloaded);
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/pack/health") {
+    await ensureDefaultPack();
+    sendJson(response, 200, await new PackHealthEngine(requireEngine().pack).report({ includeIdentityTests: true }));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/pack/identity-tests") {
+    await ensureDefaultPack();
+    sendJson(response, 200, await new IdentityTestEngine(requireEngine().pack, createHostAIProvider()).run());
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/pack/backups") {
+    await ensureDefaultPack();
+    const { pack } = requireEngine();
+    sendJson(response, 200, pack.path ? await listPackBackups(pack.path) : []);
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/pack/restore-backup") {
+    const body = await readJsonBody<{ backupId: string }>(request);
+    await ensureDefaultPack();
+    const { pack } = requireEngine();
+    if (!pack.path) {
+      throw new Error("No pack path available for restore.");
+    }
+    await restorePackBackup(pack.path, body.backupId);
+    const reloaded = await loadOCPack(pack.path);
+    ensureEngine(reloaded);
+    sendJson(response, 200, reloaded);
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/folder-index") {
+    await ensureDefaultPack();
+    sendJson(response, 200, await new FolderIndexEngine(requireEngine().pack).scan());
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/folder-index/add-root") {
+    await ensureDefaultPack();
+    sendJson(response, 200, requireEngine().pack);
     return;
   }
 
@@ -398,39 +448,37 @@ async function readActivePackPath(): Promise<string | undefined> {
 
 async function resolveActivePackPath(): Promise<string | undefined> {
   const activePath = await readActivePackPath();
-  if (activePath) {
+  const discovered = await discoverUserPackPath();
+
+  if (activePath && shouldKeepActivePackPath(activePath, discovered)) {
     return activePath;
   }
 
-  const discovered = await discoverUserPackPath();
   if (discovered) {
-    await writeActivePackPath(discovered, "auto-discovered");
+    await writeActivePackPath(discovered, activePath ? "auto-corrected-installed-pack" : "auto-discovered");
+    return discovered;
   }
-  return discovered;
+
+  return activePath;
 }
 
 async function discoverUserPackPath(): Promise<string | undefined> {
-  const userPacksRoot = join(userDataPath(), "oc-packs");
-  const preferred = join(userPacksRoot, "active-local-core");
-  if (await isOCPackPath(preferred)) {
-    return preferred;
-  }
-
+  const candidates: string[] = [];
   try {
-    const entries = await readdir(userPacksRoot, { withFileTypes: true });
+    const entries = await readdir(installedPacksRoot(), { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isDirectory()) {
         continue;
       }
-      const candidate = join(userPacksRoot, entry.name);
+      const candidate = join(installedPacksRoot(), entry.name);
       if (await isOCPackPath(candidate)) {
-        return candidate;
+        candidates.push(candidate);
       }
     }
   } catch {
     // No user OC Pack folder exists yet.
   }
-  return undefined;
+  return candidates.sort(comparePackCandidates)[0];
 }
 
 async function isOCPackPath(packPath: string): Promise<boolean> {
@@ -451,6 +499,56 @@ async function writeActivePackPath(packPath: string, reason: string): Promise<vo
     `${JSON.stringify({ path: packPath, updatedAt: new Date().toISOString(), reason }, null, 2)}\n`,
     "utf8"
   );
+}
+
+function installedPacksRoot(): string {
+  return join(userDataPath(), "oc-packs");
+}
+
+function shouldKeepActivePackPath(activePath: string, discovered?: string): boolean {
+  if (!discovered) {
+    return true;
+  }
+
+  const activeResolved = resolve(activePath);
+  const discoveredResolved = resolve(discovered);
+  if (activeResolved === discoveredResolved) {
+    return true;
+  }
+
+  if (!isInsideDirectory(installedPacksRoot(), activeResolved)) {
+    return false;
+  }
+
+  return !(isLegacyPackPath(activeResolved) && !isLegacyPackPath(discoveredResolved));
+}
+
+function comparePackCandidates(left: string, right: string): number {
+  const score = packCandidateScore(left) - packCandidateScore(right);
+  return score === 0 ? basename(left).localeCompare(basename(right), "en") : score;
+}
+
+function packCandidateScore(packPath: string): number {
+  const name = basename(packPath).toLowerCase();
+  if (name === "active-local-core") {
+    return -10;
+  }
+  if (isLegacyPackPath(packPath)) {
+    return 20;
+  }
+  if (/example|blank|template/.test(name)) {
+    return 30;
+  }
+  return 0;
+}
+
+function isLegacyPackPath(packPath: string): boolean {
+  return /legacy|migrated|deprecated|archive|old/.test(basename(packPath).toLowerCase());
+}
+
+function isInsideDirectory(parent: string, child: string): boolean {
+  const relation = relative(resolve(parent), resolve(child));
+  return relation === "" || (relation.length > 0 && !relation.startsWith("..") && !isAbsolute(relation));
 }
 
 function userDataPath(): string {

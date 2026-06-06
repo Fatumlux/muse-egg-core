@@ -43,6 +43,9 @@ async function writePackFiles(pack: OCPack, targetPath: string): Promise<void> {
   await writeJson(join(targetPath, "reaction-rules.json"), pack.reactionRules);
   await writeJson(join(targetPath, "awakening-rules.json"), pack.awakeningRules);
   await writeJson(join(targetPath, "autonomy.json"), pack.autonomy);
+  if (pack.assets.characterBindings) {
+    await writeJson(join(targetPath, "asset-bindings.json"), pack.assets.characterBindings);
+  }
   if (pack.modelRouting) {
     await writeJson(join(targetPath, "model-routing.json"), pack.modelRouting);
   }
@@ -100,6 +103,7 @@ async function createPackBackup(targetPath: string): Promise<void> {
     "reaction-rules.json",
     "awakening-rules.json",
     "autonomy.json",
+    "asset-bindings.json",
     "model-routing.json",
     "memory-store.json",
     "self-growth.json",

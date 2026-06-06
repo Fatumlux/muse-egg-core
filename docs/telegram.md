@@ -9,6 +9,10 @@ v0.1.0 的 Telegram adapter 使用 polling。
 - `allowedUserIds`
 - `allowedChatIds`
 - `pollingIntervalMs`
+- `botUsername`
+- `mentionPatterns`
+- `requireMentionInGroups`
+- `ignoreBotMessages`
 
 如果 `enabled` 是 `false`，或沒有可用 `botToken`，adapter 不會啟動。
 
@@ -41,3 +45,11 @@ renderer 只會收到 `tokenSet` 與 `tokenSource`，永遠不會收到 raw toke
 ```
 
 事件會送進與桌面 App 相同的 OC core，再由 `platformRouter` 回傳 Telegram。
+
+## 互動體驗
+
+- 收到可處理訊息後會送出 `typing` chat action。
+- 長回覆會自動切成多段，避免超過 Telegram 長度限制。
+- 群組預設需要 mention 或 reply 才會喚醒。
+- 純圖片訊息會以 `[telegram_photo]` 事件進入核心；caption 會作為文字事件。
+- 圖片 metadata 只包含 Telegram file id、尺寸與大小，不會自動下載圖片內容。

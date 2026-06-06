@@ -2,11 +2,11 @@ import type { OCEvent, OCPack, OCRuntimeSettings } from "@muse-egg/oc-schema";
 
 export class RuntimeContextEngine {
   constructor(private readonly pack: OCPack) {
-    this.pack.runtime ??= defaultRuntimeSettings();
+    this.pack.runtime = normalizeRuntimeSettings(this.pack.runtime);
   }
 
   settings(): OCRuntimeSettings {
-    this.pack.runtime ??= defaultRuntimeSettings();
+    this.pack.runtime = normalizeRuntimeSettings(this.pack.runtime);
     return this.pack.runtime;
   }
 
@@ -38,10 +38,49 @@ export class RuntimeContextEngine {
       `外部 host 需明確允許：${runtime.network.requirePermissionForExternalHosts ? "是" : "否"}`,
       `允許 host：${runtime.network.allowedHosts.join(", ") || "未設定"}`,
       `封鎖 host：${runtime.network.blockedHosts.join(", ") || "未設定"}`,
-      `網頁搜尋：${runtime.network.webSearchEnabled ? "啟用" : "停用"}`
+      `網頁搜尋：${runtime.network.webSearchEnabled ? "啟用" : "停用"}`,
+      `上下文視窗：${runtime.context.enabled ? "啟用" : "停用"}`,
+      `最近事件上限：${runtime.context.maxRecentEvents}`,
+      `上下文 prompt 字數上限：${runtime.context.maxPromptChars}`,
+      `固定資料夾索引：${runtime.folderIndex.enabled ? "啟用" : "停用"}`,
+      `固定資料夾：${this.pack.path || "未設定，目前 OC Pack 尚未安裝到資料夾"}`,
+      `回應品質檢查：${runtime.quality.enabled ? "啟用" : "停用"}`
     ];
     return lines.join("\n");
   }
+}
+
+export function normalizeRuntimeSettings(value?: Partial<OCRuntimeSettings>): OCRuntimeSettings {
+  const defaults = defaultRuntimeSettings();
+  return {
+    local: {
+      ...defaults.local,
+      ...(value?.local ?? {})
+    },
+    network: {
+      ...defaults.network,
+      ...(value?.network ?? {})
+    },
+    context: {
+      ...defaults.context,
+      ...(value?.context ?? {})
+    },
+    folderIndex: {
+      ...defaults.folderIndex,
+      ...(value?.folderIndex ?? {}),
+      roots: value?.folderIndex?.roots ?? defaults.folderIndex.roots,
+      includeExtensions: value?.folderIndex?.includeExtensions ?? defaults.folderIndex.includeExtensions,
+      excludePatterns: value?.folderIndex?.excludePatterns ?? defaults.folderIndex.excludePatterns
+    },
+    quality: {
+      ...defaults.quality,
+      ...(value?.quality ?? {})
+    },
+    updates: {
+      ...defaults.updates,
+      ...(value?.updates ?? {})
+    }
+  };
 }
 
 export function defaultRuntimeSettings(): OCRuntimeSettings {
@@ -65,6 +104,33 @@ export function defaultRuntimeSettings(): OCRuntimeSettings {
       maxResponseBytes: 524288,
       userAgent: "MuseEgg-Core/0.1",
       webSearchEnabled: false
+    },
+    context: {
+      enabled: true,
+      maxRecentEvents: 12,
+      maxPromptChars: 6000,
+      includeRuntimeEnvironment: true,
+      includeLifeState: true
+    },
+    folderIndex: {
+      enabled: true,
+      roots: [],
+      maxFiles: 2000,
+      includeExtensions: [".md", ".txt", ".json", ".png", ".jpg", ".jpeg", ".webp"],
+      excludePatterns: ["node_modules", ".git", ".museegg/backups", ".museegg/memory"],
+      refreshIntervalMinutes: 60
+    },
+    quality: {
+      enabled: true,
+      blockIdentityDrift: true,
+      blockPrivateDataLeak: true,
+      blockIncompleteResponse: true,
+      recordReports: true
+    },
+    updates: {
+      enabled: true,
+      checkOnStartup: true,
+      checkIntervalHours: 24
     }
   };
 }

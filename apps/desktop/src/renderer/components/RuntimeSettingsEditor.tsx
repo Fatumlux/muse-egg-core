@@ -1,4 +1,4 @@
-import { HardDrive, Network } from "lucide-react";
+import { BrainCircuit, HardDrive, Network } from "lucide-react";
 import { StatusPill } from "@muse-egg/ui";
 import type { OCPack, OCRuntimeSettings } from "@muse-egg/oc-schema";
 import { useI18n } from "../i18n";
@@ -10,12 +10,14 @@ export interface RuntimeSettingsEditorProps {
 
 export function RuntimeSettingsEditor({ pack, onChange }: RuntimeSettingsEditorProps) {
   const { t } = useI18n();
-  const runtime = pack.runtime ?? defaultRuntime();
+  const runtime = normalizeRuntime(pack.runtime);
   const update = (patch: Partial<OCRuntimeSettings>) => onChange({ ...pack, runtime: { ...runtime, ...patch } });
   const updateLocal = (patch: Partial<OCRuntimeSettings["local"]>) =>
     update({ local: { ...runtime.local, ...patch } });
   const updateNetwork = (patch: Partial<OCRuntimeSettings["network"]>) =>
     update({ network: { ...runtime.network, ...patch } });
+  const updateContext = (patch: Partial<OCRuntimeSettings["context"]>) =>
+    update({ context: { ...runtime.context, ...patch } });
 
   return (
     <div className="runtime-editor">
@@ -92,6 +94,50 @@ export function RuntimeSettingsEditor({ pack, onChange }: RuntimeSettingsEditorP
           </label>
         </div>
       </section>
+
+      <section className="growth-card">
+        <div className="growth-card-head">
+          <BrainCircuit size={17} />
+          <div>
+            <strong>{t("runtime.contextCore")}</strong>
+            <span>{t("runtime.contextDetail")}</span>
+          </div>
+        </div>
+        <div className="growth-toggle-grid">
+          <Toggle label={t("runtime.contextEnable")} checked={runtime.context.enabled} onChange={(checked) => updateContext({ enabled: checked })} />
+          <Toggle
+            label={t("runtime.contextEnvironment")}
+            checked={runtime.context.includeRuntimeEnvironment}
+            onChange={(checked) => updateContext({ includeRuntimeEnvironment: checked })}
+          />
+          <Toggle
+            label={t("runtime.contextLife")}
+            checked={runtime.context.includeLifeState}
+            onChange={(checked) => updateContext({ includeLifeState: checked })}
+          />
+        </div>
+        <div className="editor-grid">
+          <label>
+            <span>{t("runtime.contextRecent")}</span>
+            <input
+              type="number"
+              min={2}
+              value={runtime.context.maxRecentEvents}
+              onChange={(event) => updateContext({ maxRecentEvents: Number(event.target.value) || 2 })}
+            />
+          </label>
+          <label>
+            <span>{t("runtime.contextChars")}</span>
+            <input
+              type="number"
+              min={500}
+              value={runtime.context.maxPromptChars}
+              onChange={(event) => updateContext({ maxPromptChars: Number(event.target.value) || 500 })}
+            />
+          </label>
+        </div>
+      </section>
+
     </div>
   );
 }
@@ -133,6 +179,51 @@ function defaultRuntime(): OCRuntimeSettings {
       maxResponseBytes: 524288,
       userAgent: "MuseEgg-Core/0.1",
       webSearchEnabled: false
+    },
+    context: {
+      enabled: true,
+      maxRecentEvents: 12,
+      maxPromptChars: 6000,
+      includeRuntimeEnvironment: true,
+      includeLifeState: true
+    },
+    folderIndex: {
+      enabled: true,
+      roots: [],
+      maxFiles: 2000,
+      includeExtensions: [".md", ".txt", ".json", ".png", ".jpg", ".jpeg", ".webp"],
+      excludePatterns: ["node_modules", ".git", ".museegg/backups", ".museegg/memory"],
+      refreshIntervalMinutes: 60
+    },
+    quality: {
+      enabled: true,
+      blockIdentityDrift: true,
+      blockPrivateDataLeak: true,
+      blockIncompleteResponse: true,
+      recordReports: true
+    },
+    updates: {
+      enabled: true,
+      checkOnStartup: true,
+      checkIntervalHours: 24
     }
+  };
+}
+
+function normalizeRuntime(runtime: OCRuntimeSettings | undefined): OCRuntimeSettings {
+  const defaults = defaultRuntime();
+  return {
+    local: { ...defaults.local, ...(runtime?.local ?? {}) },
+    network: { ...defaults.network, ...(runtime?.network ?? {}) },
+    context: { ...defaults.context, ...(runtime?.context ?? {}) },
+    folderIndex: {
+      ...defaults.folderIndex,
+      ...(runtime?.folderIndex ?? {}),
+      roots: runtime?.folderIndex?.roots ?? defaults.folderIndex.roots,
+      includeExtensions: runtime?.folderIndex?.includeExtensions ?? defaults.folderIndex.includeExtensions,
+      excludePatterns: runtime?.folderIndex?.excludePatterns ?? defaults.folderIndex.excludePatterns
+    },
+    quality: { ...defaults.quality, ...(runtime?.quality ?? {}) },
+    updates: { ...defaults.updates, ...(runtime?.updates ?? {}) }
   };
 }

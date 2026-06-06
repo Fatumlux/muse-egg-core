@@ -1,13 +1,18 @@
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { appendFile, copyFile, mkdir, readFile, readdir, stat, unlink, writeFile } from "node:fs/promises";
-import { basename, dirname, extname, join, resolve } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TelegramAdapter, type TelegramAdapterSettings } from "@muse-egg/adapters";
 import {
   exportOCPack,
+  FolderIndexEngine,
+  IdentityTestEngine,
+  listPackBackups,
   loadOCPack,
   OCEngine,
+  PackHealthEngine,
   PlatformRouter,
+  restorePackBackup,
   saveOCPack,
   type OCEventInput
 } from "@muse-egg/core";
@@ -204,6 +209,43 @@ function registerIpc(): void {
     ensureEngine(reloaded);
     await writeActivePackPath(exportedPath, "export");
     return reloaded;
+  });
+
+  ipcMain.handle("pack:health", async () => {
+    const { pack } = requireEngine();
+    return new PackHealthEngine(pack).report({ includeIdentityTests: true });
+  });
+
+  ipcMain.handle("pack:identity-tests", async () => {
+    const { pack } = requireEngine();
+    return new IdentityTestEngine(pack, createHostAIProvider()).run();
+  });
+
+  ipcMain.handle("pack:list-backups", async () => {
+    const { pack } = requireEngine();
+    return pack.path ? listPackBackups(pack.path) : [];
+  });
+
+  ipcMain.handle("pack:restore-backup", async (_event, backupId: string) => {
+    const { pack } = requireEngine();
+    if (!pack.path) {
+      throw new Error("沒有可回滾的 OC Pack 路徑。");
+    }
+    await restorePackBackup(pack.path, backupId);
+    const reloaded = await loadOCPack(pack.path);
+    ensureEngine(reloaded);
+    return reloaded;
+  });
+
+  ipcMain.handle("folder-index:scan", async () => {
+    const { pack } = requireEngine();
+    return new FolderIndexEngine(pack).scan();
+  });
+
+  ipcMain.handle("folder-index:add-root", async () => {
+    const { pack } = requireEngine();
+    return pack;
+
   });
 
   ipcMain.handle("pack:add-character-asset", async () => {
@@ -453,39 +495,37 @@ async function readActivePackPath(): Promise<string | undefined> {
 
 async function resolveActivePackPath(): Promise<string | undefined> {
   const activePath = await readActivePackPath();
-  if (activePath) {
+  const discovered = await discoverUserPackPath();
+
+  if (activePath && shouldKeepActivePackPath(activePath, discovered)) {
     return activePath;
   }
 
-  const discovered = await discoverUserPackPath();
   if (discovered) {
-    await writeActivePackPath(discovered, "auto-discovered");
+    await writeActivePackPath(discovered, activePath ? "auto-corrected-installed-pack" : "auto-discovered");
+    return discovered;
   }
-  return discovered;
+
+  return activePath;
 }
 
 async function discoverUserPackPath(): Promise<string | undefined> {
-  const userPacksRoot = join(app.getPath("userData"), "oc-packs");
-  const preferred = join(userPacksRoot, "active-local-core");
-  if (await isOCPackPath(preferred)) {
-    return preferred;
-  }
-
+  const candidates: string[] = [];
   try {
-    const entries = await readdir(userPacksRoot, { withFileTypes: true });
+    const entries = await readdir(installedPacksRoot(), { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isDirectory()) {
         continue;
       }
-      const candidate = join(userPacksRoot, entry.name);
+      const candidate = join(installedPacksRoot(), entry.name);
       if (await isOCPackPath(candidate)) {
-        return candidate;
+        candidates.push(candidate);
       }
     }
   } catch {
     // No user OC Pack folder exists yet.
   }
-  return undefined;
+  return candidates.sort(comparePackCandidates)[0];
 }
 
 async function isOCPackPath(packPath: string): Promise<boolean> {
@@ -506,6 +546,56 @@ async function writeActivePackPath(packPath: string, reason: string): Promise<vo
     `${JSON.stringify({ path: packPath, updatedAt: new Date().toISOString(), reason }, null, 2)}\n`,
     "utf8"
   );
+}
+
+function installedPacksRoot(): string {
+  return join(app.getPath("userData"), "oc-packs");
+}
+
+function shouldKeepActivePackPath(activePath: string, discovered?: string): boolean {
+  if (!discovered) {
+    return true;
+  }
+
+  const activeResolved = resolve(activePath);
+  const discoveredResolved = resolve(discovered);
+  if (activeResolved === discoveredResolved) {
+    return true;
+  }
+
+  if (!isInsideDirectory(installedPacksRoot(), activeResolved)) {
+    return false;
+  }
+
+  return !(isLegacyPackPath(activeResolved) && !isLegacyPackPath(discoveredResolved));
+}
+
+function comparePackCandidates(left: string, right: string): number {
+  const score = packCandidateScore(left) - packCandidateScore(right);
+  return score === 0 ? basename(left).localeCompare(basename(right), "en") : score;
+}
+
+function packCandidateScore(packPath: string): number {
+  const name = basename(packPath).toLowerCase();
+  if (name === "active-local-core") {
+    return -10;
+  }
+  if (isLegacyPackPath(packPath)) {
+    return 20;
+  }
+  if (/example|blank|template/.test(name)) {
+    return 30;
+  }
+  return 0;
+}
+
+function isLegacyPackPath(packPath: string): boolean {
+  return /legacy|migrated|deprecated|archive|old/.test(basename(packPath).toLowerCase());
+}
+
+function isInsideDirectory(parent: string, child: string): boolean {
+  const relation = relative(resolve(parent), resolve(child));
+  return relation === "" || (relation.length > 0 && !relation.startsWith("..") && !isAbsolute(relation));
 }
 
 function readTelegramTokenFromEnv(): string | undefined {

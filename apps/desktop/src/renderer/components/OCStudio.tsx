@@ -5,6 +5,7 @@ import {
   Egg,
   Globe2,
   HeartHandshake,
+  HeartPulse,
   Image,
   Inbox,
   Shield,
@@ -21,6 +22,7 @@ import { AwakeningRuleEditor } from "./AwakeningRuleEditor";
 import { CompanionSettingsEditor } from "./CompanionSettingsEditor";
 import { GuardRuleEditor } from "./GuardRuleEditor";
 import { GrowthProposalInbox } from "./GrowthProposalInbox";
+import { HealthCenter } from "./HealthCenter";
 import { LoreVault } from "./LoreVault";
 import { ModelRoutingEditor } from "./ModelRoutingEditor";
 import { PermissionCenter } from "./PermissionCenter";
@@ -41,6 +43,7 @@ const tabs: Array<{ id: StudioTab; labelKey: string; icon: JSX.Element }> = [
   { id: "growth", labelKey: "nav.growth", icon: <Sprout size={16} /> },
   { id: "proposals", labelKey: "nav.proposals", icon: <Inbox size={16} /> },
   { id: "permissions", labelKey: "nav.permissions", icon: <ShieldCheck size={16} /> },
+  { id: "health", labelKey: "nav.health", icon: <HeartPulse size={16} /> },
   { id: "companion", labelKey: "nav.companion", icon: <HeartHandshake size={16} /> },
   { id: "runtime", labelKey: "nav.runtime", icon: <Globe2 size={16} /> },
   { id: "skills", labelKey: "nav.skills", icon: <Wrench size={16} /> },
@@ -84,6 +87,7 @@ export function OCStudio({ pack, activeTab, onTabChange, onChange }: OCStudioPro
         {activeTab === "growth" && <SelfGrowthEditor pack={pack} onChange={onChange} />}
         {activeTab === "proposals" && <GrowthProposalInbox pack={pack} onChange={onChange} />}
         {activeTab === "permissions" && <PermissionCenter pack={pack} />}
+        {activeTab === "health" && <HealthCenter pack={pack} onChange={onChange} />}
         {activeTab === "companion" && <CompanionSettingsEditor pack={pack} onChange={onChange} />}
         {activeTab === "runtime" && <RuntimeSettingsEditor pack={pack} onChange={onChange} />}
         {activeTab === "skills" && <SkillManager pack={pack} onChange={onChange} />}

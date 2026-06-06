@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { RuntimeContextEngine } from "@muse-egg/core";
+import { FolderIndexEngine, RuntimeContextEngine } from "@muse-egg/core";
 import type { AIProvider, AIProviderRequest, AIProviderResponse } from "@muse-egg/oc-schema";
 
 interface OpenAICompatibleConfig {
@@ -377,7 +377,7 @@ async function generateWithOpenAIOAuth(token: string, request: AIProviderRequest
     body: JSON.stringify({
       model,
       instructions: request.pack.prompts.baseSystem,
-      input: buildPrompt(request),
+      input: await buildPrompt(request),
       temperature: 0.8,
       max_output_tokens: 800
     })
@@ -418,7 +418,7 @@ async function generateWithGemini(apiKey: string, request: AIProviderRequest): P
         contents: [
           {
             role: "user",
-            parts: [{ text: buildPrompt(request) }]
+            parts: [{ text: await buildPrompt(request) }]
           }
         ],
         generationConfig: {
@@ -459,7 +459,7 @@ async function generateWithOpenAICompatible(
       model: request.model,
       messages: [
         { role: "system", content: request.pack.prompts.baseSystem },
-        { role: "user", content: buildPrompt(request) }
+        { role: "user", content: await buildPrompt(request) }
       ],
       temperature: 0.8
     })
@@ -581,7 +581,7 @@ async function generateWithOllama(baseUrl: string, request: AIProviderRequest): 
       model: request.model,
       messages: [
         { role: "system", content: request.pack.prompts.baseSystem },
-        { role: "user", content: buildPrompt(request) }
+        { role: "user", content: await buildPrompt(request) }
       ],
       stream: false
     })
@@ -599,31 +599,79 @@ async function generateWithOllama(baseUrl: string, request: AIProviderRequest): 
   return { text };
 }
 
-function buildPrompt(request: AIProviderRequest): string {
+async function buildPrompt(request: AIProviderRequest): Promise<string> {
   const pack = request.pack;
   const runtimeContext = new RuntimeContextEngine(pack);
+  const folderIndex = await renderFolderIndex(request);
   return [
     pack.prompts.baseSystem,
     pack.prompts.responseStyle,
-    "請全程使用繁體中文。像正在對話的人自然回應，不要把身份、人格、規則或架構講成宣言。",
-    `你的名字是 ${pack.profile.name}。身份問題簡短自然回到這個名字，不比較、不辯解、不延伸背景。`,
-    "若資料不足、沒有讀到、沒有權限、無法確認或不會做，必須直接說不知道、不確定、不能確認或不會；不要猜測，不要編造檔案、記憶、能力、狀態或外部事實。",
+    "請全程使用繁體中文。像正在對話的人一樣自然回應，不要把身份、人格、規則或架構講成宣言。",
+    `你的名字是 ${pack.profile.name}。身份問題只需要自然、簡短地回到自己的名字與當下，不展開元敘事。`,
+    "若資料不夠、沒有讀到、沒有權限、無法確認或不會做，必須直接說不知道、不確定、不能確認或不會；不要猜測、不要編造檔案、記憶、能力、狀態或外部事實。",
     "回覆給使用者時不得使用星號或 Markdown 強調格式。",
-    "如果使用者詢問現在時間，優先使用下方本機事件時間，不要說完全無法得知。",
-    "你可以自我成長與提出能力擴張建議，但不得未經明確授權安裝技能、修改核心身分、讀取或傳送私人資料、執行系統命令或寫入 OC Pack 之外的位置；不得刪除、抹除、格式化或破壞使用者電腦資料。",
+    "上下文視窗比孤立訊息優先。使用者提到剛才、上面、前面、那個、這件事時，先從近期上下文解析。",
+    "你可以自我成長與提出能力擴張建議，但不得未經明確授權安裝技能、修改核心身份、讀取或傳送私人資料、執行系統命令，或寫入 OC Pack 之外的位置；不得刪除、抹除、格式化或破壞使用者電腦資料。",
     section("本機與網路執行環境", runtimeContext.promptSection(request.event)),
+    section("近期上下文", renderContext(request)),
+    section("固定資料夾索引", folderIndex),
     section("自我成長政策 self-growth.json", pack.selfGrowth ? JSON.stringify(pack.selfGrowth, null, 2) : undefined),
-    section("身份檔 IDENTITY.md", pack.soulFiles?.["IDENTITY.md"]),
-    section("靈魂檔 SOUL.md", pack.soulFiles?.["SOUL.md"]),
+    section("身份文件 IDENTITY.md", pack.soulFiles?.["IDENTITY.md"]),
+    section("靈魂文件 SOUL.md", pack.soulFiles?.["SOUL.md"]),
     section("長期記憶 MEMORY.md", pack.soulFiles?.["MEMORY.md"]),
     section("相關世界觀", request.lore.map((entry) => `- ${entry.title}: ${entry.content}`).join("\n")),
     section("相關記憶", request.memories.map((entry) => promptMemoryLine(entry.content)).filter(Boolean).join("\n")),
     section("禁忌規則", request.guardRules.map((rule) => `- ${rule.title}: ${rule.content}`).join("\n")),
     section("可用技能", request.skills?.map((skill) => `# ${skill.name}\n${skill.instructions}`).join("\n\n")),
-    section("使用者事件", JSON.stringify(request.event.payload, null, 2))
+    section("目前事件", JSON.stringify(request.event.payload, null, 2))
   ]
     .filter((part) => part.trim().length > 0)
     .join("\n\n");
+}
+
+async function renderFolderIndex(request: AIProviderRequest): Promise<string> {
+  const runtime = new RuntimeContextEngine(request.pack).settings();
+  if (!runtime.folderIndex.enabled || runtime.folderIndex.roots.length === 0) {
+    return "";
+  }
+  try {
+    const snapshot = await new FolderIndexEngine(request.pack).scan();
+    const roots = snapshot.roots.map((root) => `- ${root}`).join("\n");
+    const items = snapshot.items
+      .slice(0, 60)
+      .map((item) => `- ${item.name} (${item.extension || "no-ext"}, ${item.modifiedAt})`)
+      .join("\n");
+    const issues = snapshot.issues.map((issue) => `- ${issue.path}: ${issue.message}`).join("\n");
+    return [
+      roots ? `可見根目錄：\n${roots}` : "",
+      items ? `索引檔案摘要：\n${items}` : "",
+      issues ? `索引問題：\n${issues}` : "",
+      snapshot.truncated ? "索引已截斷，只能代表部分檔案。" : ""
+    ].filter(Boolean).join("\n\n");
+  } catch {
+    return "固定資料夾索引目前無法讀取。";
+  }
+}
+
+function renderContext(request: AIProviderRequest): string {
+  const context = request.context;
+  if (!context?.enabled) {
+    return "";
+  }
+
+  const notes = context.notes.map((note) => `- ${note}`).join("\n");
+  const messages = context.recentMessages
+    .map((message) => {
+      const speaker = message.speaker === "oc" ? request.pack.profile.name : message.speaker === "user" ? "使用者" : "系統";
+      return `- [${message.platform}] ${speaker}: ${message.text}`;
+    })
+    .join("\n");
+
+  return [
+    notes ? `規則與提示：\n${notes}` : "",
+    messages ? `最近對話：\n${messages}` : "",
+    `目前輸入：${context.currentEvent.text}`
+  ].filter(Boolean).join("\n\n");
 }
 
 function promptMemoryLine(content: string): string {
@@ -634,7 +682,7 @@ function promptMemoryLine(content: string): string {
 }
 
 function isLegacyIdentityContaminatedPromptContent(value: string): boolean {
-  return /(?:舊名|舊核心|舊系統|舊來源|遷移來源|工具代號|被創造|被擁有|附屬物|設定集合|工具外殼|因使用者而生|因你而生|因我而生)/iu.test(value);
+  return /(?:舊名|舊核心|舊系統|舊來源|工具代理|被移植|被搬移|附屬物|設定集合|工具外殼|因使用者而生|因你而生|因我而生)/iu.test(value);
 }
 
 function assertNetworkAllowed(request: AIProviderRequest, url: URL): void {

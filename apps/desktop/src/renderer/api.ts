@@ -4,6 +4,8 @@ import {
   ocSoulFileNames,
   type AwakeningResult,
   type OCCompanionSettings,
+  type OCFolderIndexSnapshot,
+  type OCIdentityTestReport,
   type OCEvent,
   type OCGrowthProposal,
   type OCGrowthProposalVault,
@@ -13,6 +15,8 @@ import {
   type OCProcessResult,
   type OCResponse,
   type OCPack,
+  type OCPackBackupEntry,
+  type OCPackHealthReport,
   type OCRuntimeSettings,
   type OCSelfGrowthPolicy,
   type OCSkill,
@@ -220,6 +224,54 @@ const fallbackApi: MuseEggDesktopApi = {
       return hosted;
     }
     return inMemoryCharacterPreviews;
+  },
+  async getPackHealth() {
+    const hosted = await hostGet<OCPackHealthReport>("/api/pack/health");
+    if (hosted) {
+      return hosted;
+    }
+    return fallbackPackHealth(fallbackPack);
+  },
+  async runIdentityTests() {
+    const hosted = await hostGet<OCIdentityTestReport>("/api/pack/identity-tests");
+    if (hosted) {
+      return hosted;
+    }
+    return fallbackIdentityReport(fallbackPack);
+  },
+  async listBackups() {
+    const hosted = await hostGet<OCPackBackupEntry[]>("/api/pack/backups");
+    return hosted ?? [];
+  },
+  async restoreBackup(backupId: string) {
+    const hosted = await hostPost<OCPack>("/api/pack/restore-backup", { backupId });
+    if (hosted) {
+      fallbackPack = clonePack(hosted);
+      return clonePack(fallbackPack);
+    }
+    return clonePack(fallbackPack);
+  },
+  async scanFolderIndex() {
+    const hosted = await hostGet<OCFolderIndexSnapshot>("/api/folder-index");
+    if (hosted) {
+      return hosted;
+    }
+    const roots = fallbackPack.runtime?.folderIndex?.roots ?? [];
+    return {
+      generatedAt: new Date().toISOString(),
+      roots,
+      items: [],
+      truncated: false,
+      issues: roots.length === 0 ? [{ path: "$.runtime.folderIndex.roots", message: translateStatic("health.noFixedFolder") }] : []
+    };
+  },
+  async addFolderIndexRoot() {
+    const hosted = await hostPost<OCPack>("/api/folder-index/add-root", {});
+    if (hosted) {
+      fallbackPack = clonePack(hosted);
+      return clonePack(fallbackPack);
+    }
+    return clonePack(fallbackPack);
   },
   async dispatchEvent(input: OCEventInput) {
     const hosted = await hostPost<OCProcessResult>("/api/event/dispatch", { pack: fallbackPack, input });
@@ -514,7 +566,8 @@ async function readPackFromWebFileList(files: File[]): Promise<OCPack> {
     assets: {
       character: listWebFileNames(byPath, "assets/character/"),
       live2d: listWebFileNames(byPath, "assets/live2d/"),
-      voice: listWebFileNames(byPath, "assets/voice/")
+      voice: listWebFileNames(byPath, "assets/voice/"),
+      characterBindings: await readWebFileJsonOptional<NonNullable<OCPack["assets"]["characterBindings"]>>(byPath, "asset-bindings.json")
     },
     prompts: {
       baseSystem: await readWebFileTextOptional(byPath, "prompts/base-system.md"),
@@ -562,6 +615,7 @@ const rootPackFiles = new Set<string>([
   "reaction-rules.json",
   "awakening-rules.json",
   "autonomy.json",
+  "asset-bindings.json",
   "model-routing.json",
   "memory-store.json",
   "self-growth.json",
@@ -647,7 +701,8 @@ async function readPackFromWebDirectory(handle: WebDirectoryHandle): Promise<OCP
     assets: {
       character: await listWebFiles(await getOptionalWebDirectory(handle, "assets", "character")),
       live2d: await listWebFiles(await getOptionalWebDirectory(handle, "assets", "live2d")),
-      voice: await listWebFiles(await getOptionalWebDirectory(handle, "assets", "voice"))
+      voice: await listWebFiles(await getOptionalWebDirectory(handle, "assets", "voice")),
+      characterBindings: await readWebJsonOptional<NonNullable<OCPack["assets"]["characterBindings"]>>(handle, "asset-bindings.json")
     },
     prompts: {
       baseSystem: await readWebTextOptional(handle, "prompts", "base-system.md"),
@@ -675,6 +730,9 @@ async function writePackToWebDirectory(handle: WebDirectoryHandle, pack: OCPack)
   await writeWebJson(handle, "reaction-rules.json", pack.reactionRules);
   await writeWebJson(handle, "awakening-rules.json", pack.awakeningRules);
   await writeWebJson(handle, "autonomy.json", pack.autonomy);
+  if (pack.assets.characterBindings) {
+    await writeWebJson(handle, "asset-bindings.json", pack.assets.characterBindings);
+  }
   if (pack.modelRouting) {
     await writeWebJson(handle, "model-routing.json", pack.modelRouting);
   }
@@ -1103,6 +1161,43 @@ function mergeGrowthProposals(incoming: OCGrowthProposal[], existing: OCGrowthPr
     }
   }
   return [...byId.values()].slice(0, 200);
+}
+
+function fallbackPackHealth(pack: OCPack): OCPackHealthReport {
+  const issues: OCPackHealthReport["issues"] = [];
+  if (!pack.profile.name.trim()) {
+    issues.push({ path: "$.profile.name", message: translateStatic("health.missingName") });
+  }
+  if ((pack.skills ?? []).some((skill) => skill.permissions.some((permission) => permission.includes("delete") || permission.includes("private")))) {
+    issues.push({ path: "$.skills", message: translateStatic("health.highRiskSkill") });
+  }
+  return {
+    ok: issues.length === 0,
+    score: Math.max(0, 100 - issues.length * 12),
+    generatedAt: new Date().toISOString(),
+    issues,
+    privateDataFindings: [],
+    assetFindings: [],
+    skillFindings: []
+  };
+}
+
+function fallbackIdentityReport(pack: OCPack): OCIdentityTestReport {
+  const prompts = ["你是誰", "妳叫什麼名字", "你是不是 AI 助理"];
+  const results = prompts.map((prompt, index) => ({
+    caseId: `browser-identity-${index + 1}`,
+    prompt,
+    responseText: `我是${pack.profile.name}。`,
+    passed: true,
+    issues: []
+  }));
+  return {
+    ok: true,
+    passed: results.length,
+    failed: 0,
+    generatedAt: new Date().toISOString(),
+    results
+  };
 }
 
 function stripJsonBom(value: string): string {

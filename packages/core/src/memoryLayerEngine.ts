@@ -1,4 +1,4 @@
-import type { OCEvent, OCMemoryLayer } from "@muse-egg/oc-schema";
+import type { OCEvent, OCMemoryConfidence, OCMemoryLayer, OCMemoryStatus } from "@muse-egg/oc-schema";
 import { getEventText, normalizeText } from "./utils.js";
 
 const identityTerms = ["我是", "身份", "身分", "本名", "不是通用助理", "identity"];
@@ -29,4 +29,38 @@ export function classifyMemoryLayer(event: OCEvent, existingTags: string[] = [])
 
 export function memoryLayerTag(layer: OCMemoryLayer): string {
   return `layer:${layer}`;
+}
+
+export function memoryConfidenceFor(event: OCEvent, layer: OCMemoryLayer): OCMemoryConfidence {
+  if (event.payload.confirmed === true || layer === "identity" || layer === "canon") {
+    return "confirmed";
+  }
+  if (event.type === "training_input" || event.type === "lore_update" || event.type === "guard_rule_update") {
+    return "observed";
+  }
+  if (event.type === "scheduled_daily_reflection" || event.type === "scheduled_weekly_report") {
+    return "inferred";
+  }
+  if (layer === "ephemeral" || layer === "observation") {
+    return "speculative";
+  }
+  return "observed";
+}
+
+export function memoryStatusFor(confidence: OCMemoryConfidence, layer: OCMemoryLayer): OCMemoryStatus {
+  if (confidence === "confirmed" || layer === "identity" || layer === "canon") {
+    return "confirmed";
+  }
+  if (confidence === "speculative" || confidence === "inferred") {
+    return "candidate";
+  }
+  return "candidate";
+}
+
+export function memoryConfidenceTag(confidence: OCMemoryConfidence): string {
+  return `confidence:${confidence}`;
+}
+
+export function memoryStatusTag(status: OCMemoryStatus): string {
+  return `status:${status}`;
 }

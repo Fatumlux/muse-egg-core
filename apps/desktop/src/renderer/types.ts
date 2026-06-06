@@ -17,6 +17,7 @@ export type StudioTab =
   | "growth"
   | "proposals"
   | "permissions"
+  | "health"
   | "companion"
   | "runtime"
   | "skills"
